@@ -1,19 +1,18 @@
-import express from 'express';
-import cors from 'cors';
-import dotenv from 'dotenv';
+import { createApp } from './app.js';
+import { env } from './config/env.js';
 
-dotenv.config();
+const app = createApp();
 
-const app = express();
-const PORT = process.env.PORT || 5001; // Змінив на 5001, щоб не було конфлікту з Mac Air (AirPlay займає 5000)
-
-app.use(cors());
-app.use(express.json());
-
-app.get('/', (req, res) => {
-  res.send('Calendar API is running...');
+const server = app.listen(env.port, () => {
+  console.log(`Server listening on http://localhost:${env.port}`);
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server is running on http://localhost:${PORT}`);
-});
+function shutdown(signal: string): void {
+  console.log(`${signal} received, shutting down gracefully`);
+  server.close(() => {
+    process.exit(0);
+  });
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));

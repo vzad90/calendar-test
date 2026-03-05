@@ -17,5 +17,5 @@ function getPort(): number {
 export const env = {
   port: getPort(),
   nodeEnv: process.env.NODE_ENV ?? 'development',
-  mongodbUri: process.env.MONGODB_URI ?? null,
+  databaseUrl: process.env.DATABASE_URL ?? null,
 } as const;

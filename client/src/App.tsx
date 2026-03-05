@@ -1,15 +1,29 @@
-import './App.css';
+import styled from '@emotion/styled';
+import { Calendar } from './components/Calendar/Calendar';
+
+const Page = styled.div`
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+`;
+
+const Main = styled.main`
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+`;
 
 function App() {
   return (
-    <div className="app">
-      <header className="app-header">
-        <h1>Calendar</h1>
-      </header>
-      <main className="app-main">
-        <p className="app-placeholder">Calendar app — ready for implementation.</p>
-      </main>
-    </div>
+    <Page>
+      <Main>
+        <Calendar />
+      </Main>
+    </Page>
   );
 }
 

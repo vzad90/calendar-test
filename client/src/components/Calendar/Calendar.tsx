@@ -51,7 +51,7 @@ export function Calendar() {
     const y2 = parseInt(range.to.slice(0, 4), 10);
     return y1 === y2 ? [y1] : [y1, y2].sort((a, b) => a - b);
   }, [range.from, range.to]);
-  const { tasks, loading, error } = useTasks(range.from, range.to);
+  const { tasks, loading, error, create, update, remove } = useTasks(range.from, range.to);
   const { holidaysByDate } = useHolidays(years);
 
   const goPrev = () =>
@@ -98,9 +98,23 @@ export function Calendar() {
       {loading ? (
         <LoadingWrap>Loading…</LoadingWrap>
       ) : view === 'month' ? (
-        <CalendarGrid days={monthDays} tasks={tasks} holidaysByDate={holidaysByDate} />
+        <CalendarGrid
+          days={monthDays}
+          tasks={tasks}
+          holidaysByDate={holidaysByDate}
+          onCreate={create}
+          onUpdate={update}
+          onDelete={remove}
+        />
       ) : (
-        <CalendarGrid days={weekDays} tasks={tasks} holidaysByDate={holidaysByDate} />
+        <CalendarGrid
+          days={weekDays}
+          tasks={tasks}
+          holidaysByDate={holidaysByDate}
+          onCreate={create}
+          onUpdate={update}
+          onDelete={remove}
+        />
       )}
     </CalendarWrap>
   );

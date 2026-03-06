@@ -14,6 +14,9 @@ type CalendarGridProps = {
   days: CalendarDay[];
   tasks: Task[];
   holidaysByDate: Record<string, string[]>;
+  onCreate: (title: string, date: string) => Promise<unknown>;
+  onUpdate: (id: number, data: { title?: string; date?: string; order?: number }) => Promise<unknown>;
+  onDelete: (id: number) => Promise<unknown>;
 };
 
 function tasksByDate(tasks: Task[]): Record<string, Task[]> {
@@ -28,7 +31,7 @@ function tasksByDate(tasks: Task[]): Record<string, Task[]> {
   return map;
 }
 
-export function CalendarGrid({ days, tasks, holidaysByDate }: CalendarGridProps) {
+export function CalendarGrid({ days, tasks, holidaysByDate, onCreate, onUpdate, onDelete }: CalendarGridProps) {
   const byDate = tasksByDate(tasks);
   return (
     <GridWrap>
@@ -44,6 +47,9 @@ export function CalendarGrid({ days, tasks, holidaysByDate }: CalendarGridProps)
             day={day}
             tasks={byDate[day.date] ?? []}
             holidays={holidaysByDate[day.date] ?? []}
+            onCreate={onCreate}
+            onUpdate={onUpdate}
+            onDelete={onDelete}
           />
         ))}
       </DaysGrid>

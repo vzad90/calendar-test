@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from 'react';
 import styled from '@emotion/styled';
 import type { Task } from '../../types/task';
 import type { CalendarDay } from '../../types/calendar';
@@ -12,6 +13,12 @@ const Cell = styled.div<{ isCurrentMonth: boolean }>`
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
+  cursor: pointer;
+  transition: background 0.15s, box-shadow 0.15s;
+  &:hover {
+    background: ${(p) => (p.isCurrentMonth ? '#f5f7f9' : '#f0f0f0')};
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.04);
+  }
   @media (max-width: ${theme.breakpoints.sm}px) {
     padding: 4px;
     border-radius: 3px;
@@ -83,20 +90,82 @@ const TaskList = styled.ul`
   padding: 0;
   flex: 1;
   overflow: auto;
-  min-height: 0;
+  min-height: 24px;
+  @media (max-width: ${theme.breakpoints.xs}px) {
+    min-height: 20px;
+  }
 `;
 
 const TaskCard = styled.li`
+  position: relative;
   background: ${theme.card.bg};
   border-radius: 3px;
   box-shadow: ${theme.card.shadow};
   margin-bottom: 4px;
-  overflow: hidden;
+  overflow: visible;
+  cursor: pointer;
   &:last-of-type {
     margin-bottom: 0;
   }
+  &:hover [data-delete-btn] {
+    opacity: 1;
+  }
   @media (max-width: ${theme.breakpoints.xs}px) {
     margin-bottom: 2px;
+    [data-delete-btn] {
+      opacity: 1;
+    }
+  }
+`;
+
+const DeleteBtn = styled.button`
+  position: absolute;
+  top: 8px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #999;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    width: 10px;
+    height: 1.5px;
+    background: currentColor;
+    border-radius: 1px;
+  }
+  &::before {
+    transform: rotate(45deg);
+  }
+  &::after {
+    transform: rotate(-45deg);
+  }
+  &:hover {
+    background: rgba(222, 53, 11, 0.12);
+    color: #de350b;
+  }
+  @media (max-width: ${theme.breakpoints.xs}px) {
+    top: 3px;
+    right: 3px;
+    width: 18px;
+    height: 18px;
+    opacity: 1;
+    &::before,
+    &::after {
+      width: 8px;
+      height: 1px;
+    }
   }
 `;
 
@@ -115,6 +184,8 @@ const CardTitle = styled.div`
   line-height: 1.35;
   color: #333;
   word-break: break-word;
+  cursor: pointer;
+  min-height: 20px;
   @media (max-width: ${theme.breakpoints.sm}px) {
     font-size: 11px;
     padding: 4px 6px;
@@ -123,6 +194,38 @@ const CardTitle = styled.div`
     font-size: 10px;
     padding: 3px 4px;
     line-height: 1.3;
+  }
+`;
+
+const InlineInput = styled.input`
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 12px;
+  border: 1px solid #4a90d9;
+  border-radius: 3px;
+  outline: none;
+  box-sizing: border-box;
+  @media (max-width: ${theme.breakpoints.sm}px) {
+    font-size: 11px;
+    padding: 4px 6px;
+  }
+  @media (max-width: ${theme.breakpoints.xs}px) {
+    font-size: 10px;
+    padding: 3px 4px;
+  }
+`;
+
+const AddInputWrap = styled.div`
+  margin-bottom: 4px;
+  border: 1px dashed ${theme.grid.border};
+  border-radius: 3px;
+  background: #fafafa;
+  &:focus-within {
+    border-color: #4a90d9;
+    background: #fff;
+  }
+  @media (max-width: ${theme.breakpoints.xs}px) {
+    margin-bottom: 2px;
   }
 `;
 
@@ -144,12 +247,59 @@ type DayCellProps = {
   day: CalendarDay;
   tasks: Task[];
   holidays: string[];
+  onCreate: (title: string, date: string) => Promise<unknown>;
+  onUpdate: (id: number, data: { title?: string }) => Promise<unknown>;
+  onDelete: (id: number) => Promise<unknown>;
 };
 
-export function DayCell({ day, tasks, holidays }: DayCellProps) {
+export function DayCell({ day, tasks, holidays, onCreate, onUpdate, onDelete }: DayCellProps) {
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [isAdding, setIsAdding] = useState(false);
+  const [inputValue, setInputValue] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editingId !== null || isAdding) {
+      inputRef.current?.focus();
+    }
+  }, [editingId, isAdding]);
+
+  const submit = () => {
+    const value = inputValue.trim();
+    if (editingId !== null) {
+      if (value) onUpdate(editingId, { title: value });
+      setEditingId(null);
+    } else if (isAdding && value) {
+      onCreate(value, day.date);
+      setIsAdding(false);
+    } else if (isAdding) {
+      setIsAdding(false);
+    }
+    setInputValue('');
+  };
+
+  const cancel = () => {
+    setEditingId(null);
+    setIsAdding(false);
+    setInputValue('');
+  };
+
+  const startEdit = (task: Task) => {
+    setEditingId(task.id);
+    setInputValue(task.title);
+  };
+
+  const handleCellClick = (e: React.MouseEvent) => {
+    if (isAdding || editingId !== null) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-task-card]')) return;
+    setIsAdding(true);
+  };
+
   const dayLabel = formatDayLabel(day.date, day.isCurrentMonth);
+
   return (
-    <Cell isCurrentMonth={day.isCurrentMonth}>
+    <Cell isCurrentMonth={day.isCurrentMonth} onClick={handleCellClick}>
       <CellHead isCurrentMonth={day.isCurrentMonth}>
         <DayLabel isCurrentMonth={day.isCurrentMonth}>{dayLabel}</DayLabel>
         {tasks.length > 0 && (
@@ -165,11 +315,50 @@ export function DayCell({ day, tasks, holidays }: DayCellProps) {
       )}
       <TaskList>
         {tasks.map((t) => (
-          <TaskCard key={t.id}>
+          <TaskCard key={t.id} data-task-card onClick={(e) => e.stopPropagation()}>
             <CardLabelBar color={cardColor(t.id)} />
-            <CardTitle>{t.title}</CardTitle>
+            {editingId === t.id ? (
+              <InlineInput
+                ref={inputRef}
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onBlur={submit}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') submit();
+                  if (e.key === 'Escape') cancel();
+                }}
+              />
+            ) : (
+              <CardTitle onClick={() => startEdit(t)}>{t.title}</CardTitle>
+            )}
+            {editingId !== t.id && (
+              <DeleteBtn
+                type="button"
+                aria-label="Delete task"
+                data-delete-btn
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(t.id);
+                }}
+              />
+            )}
           </TaskCard>
         ))}
+        {isAdding && (
+          <AddInputWrap as="div" data-add-input onClick={(e) => e.stopPropagation()}>
+            <InlineInput
+              ref={inputRef}
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onBlur={submit}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') submit();
+                if (e.key === 'Escape') cancel();
+              }}
+              placeholder="Назва задачі..."
+            />
+          </AddInputWrap>
+        )}
       </TaskList>
     </Cell>
   );

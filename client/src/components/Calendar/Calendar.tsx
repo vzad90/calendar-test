@@ -7,8 +7,11 @@ import {
   CalendarWrap,
   NavBar,
   NavLeft,
+  NavRight,
   NavArrow,
   MonthTitle,
+  NavSearchWrap,
+  NavSearchInput,
   ViewToggle,
   ViewToggleButton,
   ErrorBanner,
@@ -32,9 +35,16 @@ function formatWeekTitle(from: string, to: string): string {
   return `${d1} ${MONTH_SHORT[m1 - 1]} – ${d2} ${MONTH_SHORT[m2 - 1]} ${y2}`;
 }
 
+function filterTasksBySearch<T extends { title: string }>(items: T[], searchQuery: string): T[] {
+  const q = searchQuery.trim().toLowerCase();
+  if (!q) return items;
+  return items.filter((t) => t.title.toLowerCase().includes(q));
+}
+
 export function Calendar() {
   const [current, setCurrent] = useState(() => new Date());
   const [view, setView] = useState<'week' | 'month'>('month');
+  const [searchQuery, setSearchQuery] = useState('');
   const year = current.getFullYear();
   const month = current.getMonth() + 1;
   const monthDays = useCalendarDays(year, month, 0);
@@ -52,6 +62,7 @@ export function Calendar() {
     return y1 === y2 ? [y1] : [y1, y2].sort((a, b) => a - b);
   }, [range.from, range.to]);
   const { tasks, loading, error, create, update, remove } = useTasks(range.from, range.to);
+  const filteredTasks = useMemo(() => filterTasksBySearch(tasks, searchQuery), [tasks, searchQuery]);
   const { holidaysByDate } = useHolidays(years);
 
   const goPrev = () =>
@@ -75,24 +86,35 @@ export function Calendar() {
           <NavArrow type="button" onClick={goNext} aria-label={`Next ${navLabel}`}>
             ›
           </NavArrow>
-          <MonthTitle>{title}</MonthTitle>
         </NavLeft>
-        <ViewToggle>
-          <ViewToggleButton
-            type="button"
-            active={view === 'week'}
-            onClick={() => setView('week')}
-          >
-            Week
-          </ViewToggleButton>
-          <ViewToggleButton
-            type="button"
-            active={view === 'month'}
-            onClick={() => setView('month')}
-          >
-            Month
-          </ViewToggleButton>
-        </ViewToggle>
+        <MonthTitle>{title}</MonthTitle>
+        <NavRight>
+          <NavSearchWrap>
+            <NavSearchInput
+              type="search"
+              placeholder="Search tasks..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              aria-label="Search tasks by title"
+            />
+          </NavSearchWrap>
+          <ViewToggle>
+            <ViewToggleButton
+              type="button"
+              active={view === 'week'}
+              onClick={() => setView('week')}
+            >
+              Week
+            </ViewToggleButton>
+            <ViewToggleButton
+              type="button"
+              active={view === 'month'}
+              onClick={() => setView('month')}
+            >
+              Month
+            </ViewToggleButton>
+          </ViewToggle>
+        </NavRight>
       </NavBar>
       {error && <ErrorBanner>{error}</ErrorBanner>}
       {loading ? (
@@ -100,7 +122,7 @@ export function Calendar() {
       ) : view === 'month' ? (
         <CalendarGrid
           days={monthDays}
-          tasks={tasks}
+          tasks={filteredTasks}
           holidaysByDate={holidaysByDate}
           onCreate={create}
           onUpdate={update}
@@ -109,7 +131,7 @@ export function Calendar() {
       ) : (
         <CalendarGrid
           days={weekDays}
-          tasks={tasks}
+          tasks={filteredTasks}
           holidaysByDate={holidaysByDate}
           onCreate={create}
           onUpdate={update}

@@ -1,8 +1,16 @@
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import styled from '@emotion/styled';
+import { useDroppable } from '@dnd-kit/core';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import type { Task } from '../../types/task';
 import type { CalendarDay } from '../../types/calendar';
 import { theme } from '../../theme';
+
+const TASK_ID_PREFIX = 'task-';
+const DAY_ID_PREFIX = 'day-';
+const DAY_END_SUFFIX = '-end';
 
 const Cell = styled.div<{ isCurrentMonth: boolean }>`
   background: ${(p) => (p.isCurrentMonth ? theme.grid.cellBg : theme.grid.cellOtherMonth)};
@@ -229,6 +237,23 @@ const AddInputWrap = styled.div`
   }
 `;
 
+const DropPlaceholder = styled.div`
+  height: 4px;
+  margin: 2px 0;
+  border-radius: 2px;
+  background: #4a90d9;
+  opacity: 0.6;
+  flex-shrink: 0;
+  pointer-events: none;
+`;
+
+const DropEndZone = styled.div<{ $active: boolean }>`
+  min-height: ${(p) => (p.$active ? 28 : 0)}px;
+  flex-shrink: 0;
+  margin-top: ${(p) => (p.$active ? 2 : 0)}px;
+  overflow: hidden;
+`;
+
 const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 function formatDayLabel(dateStr: string, isCurrentMonth: boolean): string {
@@ -243,20 +268,110 @@ function cardColor(taskId: number): string {
   return colors[taskId % colors.length];
 }
 
+type SortableTaskCardProps = {
+  task: Task;
+  isEditing: boolean;
+  inputValue: string;
+  onInputChange: (value: string) => void;
+  onSubmit: () => void;
+  onCancel: () => void;
+  onStartEdit: (task: Task) => void;
+  onDelete: (id: number) => void;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+};
+
+function SortableTaskCard({
+  task,
+  isEditing,
+  inputValue,
+  onInputChange,
+  onSubmit,
+  onCancel,
+  onStartEdit,
+  onDelete,
+  inputRef,
+}: SortableTaskCardProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: `${TASK_ID_PREFIX}${task.id}` });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0 : 1,
+  };
+
+  const dragProps = isEditing ? {} : { ...attributes, ...listeners };
+
+  return (
+    <TaskCard
+      ref={setNodeRef}
+      style={style}
+      data-task-card
+      onClick={(e) => e.stopPropagation()}
+      {...dragProps}
+    >
+      <CardLabelBar color={cardColor(task.id)} />
+      {isEditing ? (
+        <InlineInput
+          ref={inputRef}
+          value={inputValue}
+          onChange={(e) => onInputChange(e.target.value)}
+          onBlur={onSubmit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') onSubmit();
+            if (e.key === 'Escape') onCancel();
+          }}
+        />
+      ) : (
+        <CardTitle onClick={() => onStartEdit(task)}>{task.title}</CardTitle>
+      )}
+      {!isEditing && (
+        <DeleteBtn
+          type="button"
+          aria-label="Delete task"
+          data-delete-btn
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(task.id);
+          }}
+        />
+      )}
+    </TaskCard>
+  );
+}
+
 type DayCellProps = {
   day: CalendarDay;
   tasks: Task[];
   holidays: string[];
+  dropTarget: number | null;
+  isDropTargetDay: boolean;
   onCreate: (title: string, date: string) => Promise<unknown>;
   onUpdate: (id: number, data: { title?: string }) => Promise<unknown>;
   onDelete: (id: number) => Promise<unknown>;
 };
 
-export function DayCell({ day, tasks, holidays, onCreate, onUpdate, onDelete }: DayCellProps) {
+export function DayCell({ day, tasks, holidays, dropTarget, isDropTargetDay, onCreate, onUpdate, onDelete }: DayCellProps) {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const { setNodeRef } = useDroppable({ id: `${DAY_ID_PREFIX}${day.date}` });
+  const { setNodeRef: setEndZoneRef } = useDroppable({
+    id: `${DAY_ID_PREFIX}${day.date}${DAY_END_SUFFIX}`,
+  });
+
+  const sortableIds = useMemo(
+    () => tasks.map((t) => `${TASK_ID_PREFIX}${t.id}`),
+    [tasks]
+  );
 
   useEffect(() => {
     if (editingId !== null || isAdding) {
@@ -299,7 +414,11 @@ export function DayCell({ day, tasks, holidays, onCreate, onUpdate, onDelete }: 
   const dayLabel = formatDayLabel(day.date, day.isCurrentMonth);
 
   return (
-    <Cell isCurrentMonth={day.isCurrentMonth} onClick={handleCellClick}>
+    <Cell
+      ref={setNodeRef}
+      isCurrentMonth={day.isCurrentMonth}
+      onClick={handleCellClick}
+    >
       <CellHead isCurrentMonth={day.isCurrentMonth}>
         <DayLabel isCurrentMonth={day.isCurrentMonth}>{dayLabel}</DayLabel>
         {tasks.length > 0 && (
@@ -314,36 +433,6 @@ export function DayCell({ day, tasks, holidays, onCreate, onUpdate, onDelete }: 
         </HolidayList>
       )}
       <TaskList>
-        {tasks.map((t) => (
-          <TaskCard key={t.id} data-task-card onClick={(e) => e.stopPropagation()}>
-            <CardLabelBar color={cardColor(t.id)} />
-            {editingId === t.id ? (
-              <InlineInput
-                ref={inputRef}
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onBlur={submit}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') submit();
-                  if (e.key === 'Escape') cancel();
-                }}
-              />
-            ) : (
-              <CardTitle onClick={() => startEdit(t)}>{t.title}</CardTitle>
-            )}
-            {editingId !== t.id && (
-              <DeleteBtn
-                type="button"
-                aria-label="Delete task"
-                data-delete-btn
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete(t.id);
-                }}
-              />
-            )}
-          </TaskCard>
-        ))}
         {isAdding && (
           <AddInputWrap as="div" data-add-input onClick={(e) => e.stopPropagation()}>
             <InlineInput
@@ -355,10 +444,32 @@ export function DayCell({ day, tasks, holidays, onCreate, onUpdate, onDelete }: 
                 if (e.key === 'Enter') submit();
                 if (e.key === 'Escape') cancel();
               }}
-              placeholder="Назва задачі..."
+              placeholder="Task title..."
             />
           </AddInputWrap>
         )}
+        <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+          {tasks.map((t, i) => (
+            <React.Fragment key={t.id}>
+              {dropTarget === i && <DropPlaceholder />}
+              <SortableTaskCard
+                task={t}
+                isEditing={editingId === t.id}
+                inputValue={inputValue}
+                onInputChange={setInputValue}
+                onSubmit={submit}
+                onCancel={cancel}
+                onStartEdit={startEdit}
+                onDelete={onDelete}
+                inputRef={inputRef}
+              />
+            </React.Fragment>
+          ))}
+          {dropTarget === tasks.length && dropTarget !== null && (
+            <DropPlaceholder key="drop-end" />
+          )}
+        </SortableContext>
+        <DropEndZone ref={setEndZoneRef} data-drop-end $active={isDropTargetDay} />
       </TaskList>
     </Cell>
   );

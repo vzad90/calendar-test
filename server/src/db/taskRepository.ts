@@ -23,13 +23,12 @@ export async function findTaskById(id: number): Promise<Task | null> {
 
 export async function createTask(title: string, date: string): Promise<Task> {
   const sql = getSql();
-  const maxResult = (await sql`
-    SELECT COALESCE(MAX(order_index), 0) + 1 as next FROM tasks WHERE date = ${date}::date
-  `) as { next: string }[];
-  const orderIndex = Number(maxResult[0]?.next) || 1;
+  await sql`
+    UPDATE tasks SET order_index = order_index + 1 WHERE date = ${date}::date
+  `;
   const rows = (await sql`
     INSERT INTO tasks (title, date, order_index)
-    VALUES (${title}, ${date}::date, ${orderIndex})
+    VALUES (${title}, ${date}::date, 0)
     RETURNING id, title, date::text as date, order_index, created_at, updated_at
   `) as TaskRow[];
   return rowToTask(rows[0]);

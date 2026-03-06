@@ -27,7 +27,14 @@ export function useTasks(from: string, to: string) {
   const create = useCallback(
     async (title: string, date: string) => {
       const task = await tasksApi.createTask(title, date);
-      setTasks((prev) => [...prev, task].sort((a, b) => (a.date === b.date ? a.order - b.order : a.date.localeCompare(b.date))));
+      setTasks((prev) => {
+        const updated = prev.map((t) =>
+          t.date === date ? { ...t, order: t.order + 1 } : t
+        );
+        return [...updated, task].sort((a, b) =>
+          a.date === b.date ? a.order - b.order : a.date.localeCompare(b.date)
+        );
+      });
       return task;
     },
     []

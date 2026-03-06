@@ -12,53 +12,69 @@ export const NavBar = styled.nav`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 12px;
+  padding: 12px 16px;
   background: ${theme.navBar.bg};
   border-bottom: 1px solid ${theme.navBar.border};
+  box-shadow: ${theme.navBar.shadow};
   flex-shrink: 0;
-  gap: 10px;
+  gap: 12px;
   flex-wrap: nowrap;
-  min-height: 56px;
+  min-height: 58px;
   @media (max-width: ${theme.breakpoints.sm}px) {
-    padding: 10px 8px;
-    gap: 8px;
-    min-height: 52px;
+    padding: 10px 12px;
+    gap: 10px;
+    min-height: 54px;
   }
 `;
 
 export const NavLeft = styled.div`
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
   flex: 1;
+  justify-content: flex-start;
+`;
+
+export const NavRight = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+  justify-content: flex-end;
 `;
 
 export const NavArrow = styled.button`
-  width: 40px;
-  height: 36px;
-  min-width: 40px;
-  min-height: 36px;
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  min-height: 38px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: ${theme.navBar.bg};
+  background: #fff;
   border: 1px solid ${theme.navBar.border};
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
   font-size: 18px;
+  font-weight: 500;
   color: ${theme.navBar.text};
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
   -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
   &:hover {
-    background: ${theme.navBar.buttonHover};
+    background: #fafafa;
+    border-color: #ddd;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
   }
   &:active {
-    background: ${theme.navBar.border};
+    box-shadow: 0 0 0 2px ${theme.navBar.accentFocus};
   }
   @media (max-width: ${theme.breakpoints.sm}px) {
-    width: 44px;
+    width: 40px;
     height: 40px;
-    min-width: 44px;
+    min-width: 40px;
     min-height: 40px;
     font-size: 20px;
   }
@@ -66,46 +82,89 @@ export const NavArrow = styled.button`
 
 export const MonthTitle = styled.h2`
   margin: 0;
-  font-size: clamp(14px, 3.5vw, 16px);
+  font-size: clamp(15px, 3.5vw, 17px);
   font-weight: 600;
+  letter-spacing: -0.02em;
   color: ${theme.navBar.text};
-  flex: 1;
+  flex-shrink: 0;
   text-align: center;
-  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   @media (max-width: ${theme.breakpoints.sm}px) {
-    font-size: 15px;
+    font-size: 16px;
+  }
+`;
+
+export const NavSearchWrap = styled.div`
+  min-width: 0;
+  flex: 1;
+  max-width: 220px;
+  @media (max-width: ${theme.breakpoints.sm}px) {
+    max-width: 150px;
+  }
+`;
+
+export const NavSearchInput = styled.input`
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  border: 1px solid ${theme.navBar.border};
+  border-radius: 8px;
+  background: #fff;
+  color: #333;
+  outline: none;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  transition: border-color 0.15s, box-shadow 0.15s;
+  &::placeholder {
+    color: #999;
+  }
+  &:hover {
+    border-color: #ddd;
+  }
+  &:focus {
+    border-color: ${theme.navBar.accent};
+    box-shadow: 0 0 0 3px ${theme.navBar.accentFocus};
+  }
+  @media (max-width: ${theme.breakpoints.sm}px) {
+    padding: 6px 10px;
+    font-size: 12px;
+    border-radius: 6px;
   }
 `;
 
 export const ViewToggle = styled.div`
   display: flex;
   border: 1px solid ${theme.navBar.border};
-  border-radius: 6px;
+  border-radius: 8px;
   overflow: hidden;
-  background: ${theme.navBar.bg};
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
   flex-shrink: 0;
 `;
 
 export const ViewToggleButton = styled.button<{ active?: boolean }>`
-  padding: 8px 14px;
-  min-height: 40px;
+  padding: 8px 16px;
+  min-height: 38px;
   font-size: 13px;
+  font-weight: 500;
   border: none;
   cursor: pointer;
-  background: ${(p) => (p.active ? theme.navBar.toggleActive : 'transparent')};
-  color: ${(p) => (p.active ? theme.navBar.text : theme.navBar.toggleInactive)};
-  font-weight: ${(p) => (p.active ? 600 : 400)};
-  box-shadow: ${(p) => (p.active ? '0 1px 2px rgba(0,0,0,0.06)' : 'none')};
+  background: ${(p) => (p.active ? theme.navBar.text : 'transparent')};
+  color: ${(p) => (p.active ? '#fff' : theme.navBar.toggleInactive)};
   -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s, color 0.15s;
   &:hover {
-    color: ${theme.navBar.text};
+    color: ${(p) => (p.active ? '#fff' : theme.navBar.text)};
+    background: ${(p) => (p.active ? theme.navBar.text : '#f5f5f5')};
+  }
+  &:active {
+    opacity: 0.95;
   }
   @media (max-width: ${theme.breakpoints.sm}px) {
     padding: 8px 12px;
-    min-height: 44px;
+    min-height: 40px;
     font-size: 12px;
   }
 `;
@@ -187,3 +246,4 @@ export const LoadingWrap = styled.div`
   color: ${theme.navBar.toggleInactive};
   font-size: 14px;
 `;
+

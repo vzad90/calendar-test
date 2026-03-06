@@ -20,6 +20,16 @@ export function useTasks(from: string, to: string) {
     }
   }, [from, to]);
 
+  /** Refetch without setting loading — use after drag to sync state without UI flash */
+  const refetchSilent = useCallback(async () => {
+    try {
+      const data = await tasksApi.getTasks(from, to);
+      setTasks(data);
+    } catch {
+      // keep current state on error
+    }
+  }, [from, to]);
+
   useEffect(() => {
     refetch();
   }, [refetch]);
@@ -59,5 +69,5 @@ export function useTasks(from: string, to: string) {
     setTasks((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  return { tasks, loading, error, refetch, create, update, remove };
+  return { tasks, loading, error, refetch, refetchSilent, create, update, remove };
 }

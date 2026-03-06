@@ -39,6 +39,7 @@ type CalendarGridProps = {
   onCreate: (title: string, date: string) => Promise<unknown>;
   onUpdate: (id: number, data: { title?: string; date?: string; order?: number }) => Promise<unknown>;
   onDelete: (id: number) => Promise<unknown>;
+  onRefetch: () => Promise<void>;
 };
 
 function tasksByDate(tasks: Task[]): Record<string, Task[]> {
@@ -64,7 +65,7 @@ function overlayCardColor(taskId: number): string {
   return overlayLabelColors[taskId % overlayLabelColors.length];
 }
 
-export function CalendarGrid({ days, tasks, holidaysByDate, onCreate, onUpdate, onDelete }: CalendarGridProps) {
+export function CalendarGrid({ days, tasks, holidaysByDate, onCreate, onUpdate, onDelete, onRefetch }: CalendarGridProps) {
   const byDate = useMemo(() => tasksByDate(tasks), [tasks]);
   const [dropTarget, setDropTarget] = useState<DropTarget>(null);
   const [activeTaskId, setActiveTaskId] = useState<number | null>(null);
@@ -140,6 +141,8 @@ export function CalendarGrid({ days, tasks, holidaysByDate, onCreate, onUpdate, 
     const task = tasks.find((t) => t.id === taskId);
     if (!task) return;
 
+    const updates: Promise<unknown>[] = [];
+
     if (overId.startsWith(DAY_ID_PREFIX)) {
       const rest = overId.slice(DAY_ID_PREFIX.length);
       const isEndZone = rest.endsWith(DAY_END_SUFFIX);
@@ -148,12 +151,15 @@ export function CalendarGrid({ days, tasks, holidaysByDate, onCreate, onUpdate, 
         const dayTasks = byDate[newDate] ?? [];
         const insertIndex =
           targetToUse?.date === newDate ? targetToUse.index : dayTasks.length;
-        onUpdate(taskId, { date: newDate, order: insertIndex });
+        updates.push(onUpdate(taskId, { date: newDate, order: insertIndex }));
         dayTasks.forEach((t, i) => {
           if (i >= insertIndex && t.order !== i + 1) {
-            onUpdate(t.id, { order: i + 1 });
+            updates.push(onUpdate(t.id, { order: i + 1 }));
           }
         });
+      }
+      if (updates.length > 0) {
+        Promise.all(updates).then(() => onRefetch(), () => onRefetch());
       }
       return;
     }
@@ -172,7 +178,7 @@ export function CalendarGrid({ days, tasks, holidaysByDate, onCreate, onUpdate, 
         const reordered = arrayMove(dayTasks, oldIndex, newIndex);
         reordered.forEach((t, i) => {
           if (t.order !== i) {
-            onUpdate(t.id, { order: i });
+            updates.push(onUpdate(t.id, { order: i }));
           }
         });
       } else {
@@ -183,12 +189,15 @@ export function CalendarGrid({ days, tasks, holidaysByDate, onCreate, onUpdate, 
             : targetDayTasks.findIndex((t) => t.id === overTaskId);
         if (insertIndex === -1) return;
 
-        onUpdate(taskId, { date: overTask.date, order: insertIndex });
+        updates.push(onUpdate(taskId, { date: overTask.date, order: insertIndex }));
         targetDayTasks.forEach((t, i) => {
           if (i >= insertIndex && t.order !== i + 1) {
-            onUpdate(t.id, { order: i + 1 });
+            updates.push(onUpdate(t.id, { order: i + 1 }));
           }
         });
+      }
+      if (updates.length > 0) {
+        Promise.all(updates).then(() => onRefetch(), () => onRefetch());
       }
     }
   };

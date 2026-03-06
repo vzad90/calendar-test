@@ -353,7 +353,7 @@ type DayCellProps = {
   dropTarget: number | null;
   isDropTargetDay: boolean;
   onCreate: (title: string, date: string) => Promise<unknown>;
-  onUpdate: (id: number, data: { title?: string }) => Promise<unknown>;
+  onUpdate: (id: number, data: { title?: string; date?: string; order?: number }) => Promise<unknown>;
   onDelete: (id: number) => Promise<unknown>;
 };
 

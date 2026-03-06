@@ -12,8 +12,11 @@ function getApp() {
   return appPromise;
 }
 
-export default async function handler(req: import('express').Request, res: import('express').Response) {
+export default async function handler(req: import('http').IncomingMessage, res: import('http').ServerResponse) {
   try {
+    if (req.url && !req.url.startsWith('/api')) {
+      req.url = '/api' + (req.url.startsWith('/') ? req.url : '/' + req.url);
+    }
     const app = await getApp();
     app(req, res);
   } catch (err) {

@@ -61,7 +61,7 @@ export function Calendar() {
     const y2 = parseInt(range.to.slice(0, 4), 10);
     return y1 === y2 ? [y1] : [y1, y2].sort((a, b) => a - b);
   }, [range.from, range.to]);
-  const { tasks, loading, error, create, update, remove } = useTasks(range.from, range.to);
+  const { tasks, loading, error, create, update, remove, refetchSilent } = useTasks(range.from, range.to);
   const filteredTasks = useMemo(() => filterTasksBySearch(tasks, searchQuery), [tasks, searchQuery]);
   const { holidaysByDate } = useHolidays(years);
 
@@ -127,6 +127,7 @@ export function Calendar() {
           onCreate={create}
           onUpdate={update}
           onDelete={remove}
+          onRefetch={refetchSilent}
         />
       ) : (
         <CalendarGrid
@@ -136,6 +137,7 @@ export function Calendar() {
           onCreate={create}
           onUpdate={update}
           onDelete={remove}
+          onRefetch={refetchSilent}
         />
       )}
     </CalendarWrap>

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, memo } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -40,6 +40,7 @@ type CalendarGridProps = {
   onUpdate: (id: number, data: { title?: string; date?: string; order?: number }) => Promise<unknown>;
   onDelete: (id: number) => Promise<unknown>;
   onRefetch: () => Promise<void>;
+  onReorder: (updates: { id: number; date: string; order: number }[]) => Promise<unknown> | void;
 };
 
 function tasksByDate(tasks: Task[]): Record<string, Task[]> {
@@ -65,7 +66,11 @@ function overlayCardColor(taskId: number): string {
   return overlayLabelColors[taskId % overlayLabelColors.length];
 }
 
-export function CalendarGrid({ days, tasks, holidaysByDate, onCreate, onUpdate, onDelete, onRefetch }: CalendarGridProps) {
+const emptyTasks: Task[] = [];
+const emptyHolidays: string[] = [];
+const MemoDayCell = memo(DayCell);
+
+export function CalendarGrid({ days, tasks, holidaysByDate, onCreate, onUpdate, onDelete, onRefetch, onReorder }: CalendarGridProps) {
   const byDate = useMemo(() => tasksByDate(tasks), [tasks]);
   const [dropTarget, setDropTarget] = useState<DropTarget>(null);
   const [activeTaskId, setActiveTaskId] = useState<number | null>(null);
@@ -141,7 +146,7 @@ export function CalendarGrid({ days, tasks, holidaysByDate, onCreate, onUpdate, 
     const task = tasks.find((t) => t.id === taskId);
     if (!task) return;
 
-    const updates: Promise<unknown>[] = [];
+    const changes: { id: number; date: string; order: number }[] = [];
 
     if (overId.startsWith(DAY_ID_PREFIX)) {
       const rest = overId.slice(DAY_ID_PREFIX.length);
@@ -151,15 +156,15 @@ export function CalendarGrid({ days, tasks, holidaysByDate, onCreate, onUpdate, 
         const dayTasks = byDate[newDate] ?? [];
         const insertIndex =
           targetToUse?.date === newDate ? targetToUse.index : dayTasks.length;
-        updates.push(onUpdate(taskId, { date: newDate, order: insertIndex }));
+        changes.push({ id: taskId, date: newDate, order: insertIndex });
         dayTasks.forEach((t, i) => {
           if (i >= insertIndex && t.order !== i + 1) {
-            updates.push(onUpdate(t.id, { order: i + 1 }));
+            changes.push({ id: t.id, date: newDate, order: i + 1 });
           }
         });
       }
-      if (updates.length > 0) {
-        Promise.all(updates).then(() => onRefetch(), () => onRefetch());
+      if (changes.length > 0) {
+        Promise.resolve(onReorder(changes)).then(() => onRefetch(), () => onRefetch());
       }
       return;
     }
@@ -178,7 +183,7 @@ export function CalendarGrid({ days, tasks, holidaysByDate, onCreate, onUpdate, 
         const reordered = arrayMove(dayTasks, oldIndex, newIndex);
         reordered.forEach((t, i) => {
           if (t.order !== i) {
-            updates.push(onUpdate(t.id, { order: i }));
+            changes.push({ id: t.id, date: t.date, order: i });
           }
         });
       } else {
@@ -189,15 +194,15 @@ export function CalendarGrid({ days, tasks, holidaysByDate, onCreate, onUpdate, 
             : targetDayTasks.findIndex((t) => t.id === overTaskId);
         if (insertIndex === -1) return;
 
-        updates.push(onUpdate(taskId, { date: overTask.date, order: insertIndex }));
+        changes.push({ id: taskId, date: overTask.date, order: insertIndex });
         targetDayTasks.forEach((t, i) => {
           if (i >= insertIndex && t.order !== i + 1) {
-            updates.push(onUpdate(t.id, { order: i + 1 }));
+            changes.push({ id: t.id, date: overTask.date, order: i + 1 });
           }
         });
       }
-      if (updates.length > 0) {
-        Promise.all(updates).then(() => onRefetch(), () => onRefetch());
+      if (changes.length > 0) {
+        Promise.resolve(onReorder(changes)).then(() => onRefetch(), () => onRefetch());
       }
     }
   };
@@ -221,11 +226,11 @@ export function CalendarGrid({ days, tasks, holidaysByDate, onCreate, onUpdate, 
         </WeekdayRow>
         <DaysGrid>
           {days.map((day) => (
-            <DayCell
+            <MemoDayCell
               key={day.date}
               day={day}
-              tasks={byDate[day.date] ?? []}
-              holidays={holidaysByDate[day.date] ?? []}
+              tasks={byDate[day.date] ?? emptyTasks}
+              holidays={holidaysByDate[day.date] ?? emptyHolidays}
               dropTarget={dropTarget?.date === day.date ? dropTarget.index : null}
               isDropTargetDay={dropTarget?.date === day.date ? true : false}
               onCreate={onCreate}

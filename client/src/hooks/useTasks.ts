@@ -1,73 +1,185 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as tasksApi from '../api/tasks';
+import type { TaskReorderUpdate } from '../api/tasks';
 import type { Task } from '../types/task';
 
+function sortTasksByDateAndOrder(list: Task[]): Task[] {
+  return [...list].sort((a, b) =>
+    a.date === b.date ? a.order - b.order : a.date.localeCompare(b.date)
+  );
+}
+
 export function useTasks(from: string, to: string) {
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const queryKey = useMemo(() => ['tasks', from, to] as const, [from, to]);
 
-  const refetch = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
+  const {
+    data = [],
+    isLoading,
+    error,
+    refetch,
+  } = useQuery<Task[]>({
+    queryKey,
+    queryFn: async () => {
       const data = await tasksApi.getTasks(from, to);
-      setTasks(data);
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  }, [from, to]);
+      return sortTasksByDateAndOrder(data);
+    },
+  });
 
-  /** Refetch without setting loading — use after drag to sync state without UI flash */
   const refetchSilent = useCallback(async () => {
-    try {
-      const data = await tasksApi.getTasks(from, to);
-      setTasks(data);
-    } catch {
-      // keep current state on error
-    }
-  }, [from, to]);
+    await queryClient.invalidateQueries({ queryKey });
+  }, [queryClient, queryKey]);
 
-  useEffect(() => {
-    refetch();
-  }, [refetch]);
+  const createMutation = useMutation({
+    mutationFn: ({ title, date }: { title: string; date: string }) =>
+      tasksApi.createTask(title, date),
+    onMutate: async ({ title, date }) => {
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<Task[]>(queryKey) ?? [];
+      const optimisticId = Math.min(0, ...previous.map((t) => t.id)) - 1;
+      const optimisticTask: Task = {
+        id: optimisticId,
+        title,
+        date,
+        order: previous.filter((t) => t.date === date).length,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      queryClient.setQueryData<Task[]>(queryKey, (prev = []) =>
+        sortTasksByDateAndOrder([...prev, optimisticTask])
+      );
+      return { previous, optimisticId };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(queryKey, context.previous);
+      }
+    },
+    onSuccess: (task, _vars, context) => {
+      queryClient.setQueryData<Task[]>(queryKey, (prev = []) =>
+        sortTasksByDateAndOrder(
+          prev.filter((t) => t.id !== context?.optimisticId).concat(task)
+        )
+      );
+    },
+  });
 
   const create = useCallback(
-    async (title: string, date: string) => {
-      const task = await tasksApi.createTask(title, date);
-      setTasks((prev) => {
-        const updated = prev.map((t) =>
-          t.date === date ? { ...t, order: t.order + 1 } : t
-        );
-        return [...updated, task].sort((a, b) =>
-          a.date === b.date ? a.order - b.order : a.date.localeCompare(b.date)
-        );
-      });
-      return task;
-    },
-    []
+    (title: string, date: string) => createMutation.mutateAsync({ title, date }),
+    [createMutation]
   );
+
+  const updateMutation = useMutation({
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: number;
+      data: { title?: string; date?: string; order?: number };
+    }) => tasksApi.updateTask(id, data),
+    onMutate: async ({ id, data }) => {
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<Task[]>(queryKey) ?? [];
+      const existing = previous.find((t) => t.id === id);
+      if (!existing) {
+        return { previous };
+      }
+      const optimistic: Task = {
+        ...existing,
+        ...data,
+        updatedAt: new Date().toISOString(),
+      };
+      const next = sortTasksByDateAndOrder(
+        previous.filter((t) => t.id !== id).concat(optimistic)
+      );
+      queryClient.setQueryData<Task[]>(queryKey, next);
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(queryKey, context.previous);
+      }
+    },
+    onSuccess: (task) => {
+      queryClient.setQueryData<Task[]>(queryKey, (prev = []) =>
+        sortTasksByDateAndOrder(prev.filter((t) => t.id !== task.id).concat(task))
+      );
+    },
+  });
 
   const update = useCallback(
-    async (id: number, data: { title?: string; date?: string; order?: number }) => {
-      const task = await tasksApi.updateTask(id, data);
-      setTasks((prev) =>
-        prev
-          .filter((t) => t.id !== id)
-          .concat(task)
-          .sort((a, b) => (a.date === b.date ? a.order - b.order : a.date.localeCompare(b.date)))
-      );
-      return task;
-    },
-    []
+    (id: number, data: { title?: string; date?: string; order?: number }) =>
+      updateMutation.mutateAsync({ id, data }),
+    [updateMutation]
   );
 
-  const remove = useCallback(async (id: number) => {
-    await tasksApi.deleteTask(id);
-    setTasks((prev) => prev.filter((t) => t.id !== id));
-  }, []);
+  const removeMutation = useMutation({
+    mutationFn: (id: number) => tasksApi.deleteTask(id),
+    onMutate: async (id: number) => {
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<Task[]>(queryKey) ?? [];
+      const next = previous.filter((t) => t.id !== id);
+      queryClient.setQueryData<Task[]>(queryKey, next);
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(queryKey, context.previous);
+      }
+    },
+  });
 
-  return { tasks, loading, error, refetch, refetchSilent, create, update, remove };
+  const remove = useCallback(
+    (id: number) => removeMutation.mutateAsync(id),
+    [removeMutation]
+  );
+
+  const reorderMutation = useMutation({
+    mutationFn: (updates: TaskReorderUpdate[]) => tasksApi.reorderTasks(updates),
+    onMutate: async (updates: TaskReorderUpdate[]) => {
+      if (updates.length === 0) return { previous: queryClient.getQueryData<Task[]>(queryKey) ?? [] };
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<Task[]>(queryKey) ?? [];
+      const byId = new Map<number, TaskReorderUpdate>();
+      updates.forEach((u) => {
+        byId.set(u.id, u);
+      });
+      const next = sortTasksByDateAndOrder(
+        previous.map((t) => {
+          const upd = byId.get(t.id);
+          if (!upd) return t;
+          return {
+            ...t,
+            date: upd.date,
+            order: upd.order,
+          };
+        })
+      );
+      queryClient.setQueryData<Task[]>(queryKey, next);
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(queryKey, context.previous);
+      }
+    },
+  });
+
+  const reorder = useCallback(
+    (updates: TaskReorderUpdate[]) => reorderMutation.mutateAsync(updates),
+    [reorderMutation]
+  );
+
+  return {
+    tasks: data,
+    loading: isLoading,
+    error: error ? (error as Error).message : null,
+    refetch,
+    refetchSilent,
+    create,
+    update,
+    remove,
+    reorder,
+  };
 }

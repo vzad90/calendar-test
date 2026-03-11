@@ -32,6 +32,41 @@ function isValidDate(s: string): boolean {
 
 router.use(requireDbConfigured);
 
+router.patch('/reorder', async (req: Request, res: Response): Promise<void> => {
+  const body = req.body ?? {};
+  const updates = Array.isArray(body.updates) ? body.updates : [];
+  if (!Array.isArray(updates) || updates.length === 0) {
+    res.status(400).json({ error: '"updates" must be a non-empty array' });
+    return;
+  }
+  const normalized: { id: number; date: string; order: number }[] = [];
+  for (const item of updates) {
+    const id = parseId(item?.id);
+    const date = typeof item?.date === 'string' ? item.date : '';
+    const order = Number(item?.order);
+    if (id === null) {
+      res.status(400).json({ error: 'Each update must have a valid "id"' });
+      return;
+    }
+    if (!date || !isValidDate(date)) {
+      res.status(400).json({ error: 'Each update must have a valid "date" (YYYY-MM-DD)' });
+      return;
+    }
+    if (Number.isNaN(order) || order < 0) {
+      res.status(400).json({ error: 'Each update must have a non-negative "order"' });
+      return;
+    }
+    normalized.push({ id, date, order });
+  }
+  try {
+    await taskRepo.bulkReorderTasks(normalized);
+    res.status(204).send();
+  } catch (err) {
+    console.error(err);
+    res.status(503).json({ error: 'Service unavailable' });
+  }
+});
+
 router.get('/', async (req: Request, res: Response): Promise<void> => {
   const from = typeof req.query.from === 'string' ? req.query.from : '';
   const to = typeof req.query.to === 'string' ? req.query.to : '';

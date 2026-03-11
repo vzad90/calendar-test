@@ -67,3 +67,19 @@ export async function deleteTask(id: number): Promise<boolean> {
   const rows = (await sql`DELETE FROM tasks WHERE id = ${id} RETURNING id`) as { id: number }[];
   return rows.length > 0;
 }
+
+export async function bulkReorderTasks(
+  updates: { id: number; date: string; order: number }[]
+): Promise<void> {
+  if (updates.length === 0) return;
+  const sql = getSql();
+  await Promise.all(
+    updates.map((u) =>
+      sql`
+        UPDATE tasks
+        SET date = ${u.date}::date, order_index = ${u.order}, updated_at = now()
+        WHERE id = ${u.id}
+      `
+    )
+  );
+}

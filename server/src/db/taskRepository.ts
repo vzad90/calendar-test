@@ -23,13 +23,18 @@ export async function findTaskById(id: number): Promise<Task | null> {
 
 export async function createTask(title: string, date: string): Promise<Task> {
   const sql = getSql();
-  await sql`
-    UPDATE tasks SET order_index = order_index + 1 WHERE date = ${date}::date
-  `;
   const rows = (await sql`
-    INSERT INTO tasks (title, date, order_index)
-    VALUES (${title}, ${date}::date, 0)
-    RETURNING id, title, date::text as date, order_index, created_at, updated_at
+    WITH updated AS (
+      UPDATE tasks
+      SET order_index = order_index + 1
+      WHERE date = ${date}::date
+    ),
+    inserted AS (
+      INSERT INTO tasks (title, date, order_index)
+      VALUES (${title}, ${date}::date, 0)
+      RETURNING id, title, date::text as date, order_index, created_at, updated_at
+    )
+    SELECT * FROM inserted
   `) as TaskRow[];
   return rowToTask(rows[0]);
 }
@@ -38,12 +43,16 @@ export async function updateTask(
   id: number,
   data: { title?: string; date?: string; order?: number }
 ): Promise<Task | null> {
-  const current = await findTaskById(id);
-  if (!current) return null;
+  const sql = getSql();
+  const existing = (await sql`
+    SELECT id, title, date::text as date, order_index, created_at, updated_at
+    FROM tasks WHERE id = ${id}
+  `) as TaskRow[];
+  if (!existing.length) return null;
+  const current = existing[0];
   const title = data.title ?? current.title;
   const date = data.date ?? current.date;
-  const order = data.order ?? current.order;
-  const sql = getSql();
+  const order = data.order ?? current.order_index;
   const rows = (await sql`
     UPDATE tasks
     SET title = ${title}, date = ${date}::date, order_index = ${order}, updated_at = now()

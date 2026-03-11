@@ -4,7 +4,7 @@ import { tasksRouter } from './tasks.js';
 
 export function registerRoutes(app: Express): void {
   const api = Router();
-  api.get('/', getHealth);
+  api.get('/health', getHealth);
   api.use('/tasks', tasksRouter);
   app.use('/api', api);
   app.get('/', getHealth);

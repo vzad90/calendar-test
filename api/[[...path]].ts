@@ -12,7 +12,7 @@ function getApp() {
   return appPromise;
 }
 
-export default async function handler(req: import('http').IncomingMessage, res: import('http').ServerResponse) {
+export default async function handler(req: import('http').IncomingMessage, res: import('express').Response) {
   try {
     if (req.url && !req.url.startsWith('/api')) {
       req.url = '/api' + (req.url.startsWith('/') ? req.url : '/' + req.url);

@@ -1,1 +1,7 @@
-{ "type": "module" }
+{
+  "type": "module",
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/express": "^5.0.0"
+  }
+}

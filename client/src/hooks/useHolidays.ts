@@ -45,7 +45,7 @@ export function useHolidays(years: number[], countryCode: string = 'UA') {
     } finally {
       setLoading(false);
     }
-  }, [years.join(','), countryCode]);
+  }, [years, countryCode]);
 
   useEffect(() => {
     load();

@@ -1,6 +1,12 @@
 import { request } from './client';
 import type { Task } from '../types/task';
 
+export type TaskReorderUpdate = {
+  id: number;
+  date: string;
+  order: number;
+};
+
 export function getTasks(from: string, to: string): Promise<Task[]> {
   return request<Task[]>(`/api/tasks?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
 }
@@ -24,4 +30,11 @@ export function updateTask(
 
 export function deleteTask(id: number): Promise<void> {
   return request<void>(`/api/tasks/${id}`, { method: 'DELETE' });
+}
+
+export function reorderTasks(updates: TaskReorderUpdate[]): Promise<void> {
+  return request<void>('/api/tasks/reorder', {
+    method: 'PATCH',
+    body: JSON.stringify({ updates }),
+  });
 }

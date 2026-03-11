@@ -1,8 +1,10 @@
 import { useState, useMemo } from 'react';
+import type { Task } from '../../types/task';
 import { useCalendarDays } from '../../hooks/useCalendarDays';
 import { useTasks } from '../../hooks/useTasks';
 import { useHolidays } from '../../hooks/useHolidays';
 import { addMonths, addDays, toYMD, getWeekDays } from '../../utils/date';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import {
   CalendarWrap,
   NavBar,
@@ -61,8 +63,12 @@ export function Calendar() {
     const y2 = parseInt(range.to.slice(0, 4), 10);
     return y1 === y2 ? [y1] : [y1, y2].sort((a, b) => a - b);
   }, [range.from, range.to]);
-  const { tasks, loading, error, create, update, remove, refetchSilent } = useTasks(range.from, range.to);
-  const filteredTasks = useMemo(() => filterTasksBySearch(tasks, searchQuery), [tasks, searchQuery]);
+  const { tasks, loading, error, create, update, remove, refetchSilent, reorder } = useTasks(range.from, range.to);
+  const debouncedSearch = useDebouncedValue(searchQuery, 200);
+  const filteredTasks: Task[] = useMemo(
+    () => filterTasksBySearch<Task>(tasks, debouncedSearch),
+    [tasks, debouncedSearch]
+  );
   const { holidaysByDate } = useHolidays(years);
 
   const goPrev = () =>
@@ -128,6 +134,7 @@ export function Calendar() {
           onUpdate={update}
           onDelete={remove}
           onRefetch={refetchSilent}
+          onReorder={reorder}
         />
       ) : (
         <CalendarGrid
@@ -138,6 +145,7 @@ export function Calendar() {
           onUpdate={update}
           onDelete={remove}
           onRefetch={refetchSilent}
+          onReorder={reorder}
         />
       )}
     </CalendarWrap>

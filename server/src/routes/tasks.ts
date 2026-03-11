@@ -1,4 +1,4 @@
-import { type Request, type Response, Router } from 'express';
+import { type Request, type Response, type NextFunction, Router } from 'express';
 import * as taskRepo from '../db/taskRepository.js';
 import { isDbConfigured } from '../db/client.js';
 
@@ -6,10 +6,22 @@ const router = Router();
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-function parseId(param: string | undefined): number | null {
+function parseId(param: string | string[] | undefined): number | null {
+  if (Array.isArray(param)) {
+    if (param.length === 0) return null;
+    param = param[0];
+  }
   if (param === undefined) return null;
   const n = Number.parseInt(param, 10);
   return Number.isNaN(n) ? null : n;
+}
+
+function requireDbConfigured(_req: Request, res: Response, next: NextFunction): void {
+  if (!isDbConfigured()) {
+    res.status(503).json({ error: 'Database not configured' });
+    return;
+  }
+  next();
 }
 
 function isValidDate(s: string): boolean {
@@ -18,11 +30,9 @@ function isValidDate(s: string): boolean {
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
 }
 
+router.use(requireDbConfigured);
+
 router.get('/', async (req: Request, res: Response): Promise<void> => {
-  if (!isDbConfigured()) {
-    res.status(503).json({ error: 'Database not configured' });
-    return;
-  }
   const from = typeof req.query.from === 'string' ? req.query.from : '';
   const to = typeof req.query.to === 'string' ? req.query.to : '';
   if (!from || !to) {
@@ -41,15 +51,12 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
     const tasks = await taskRepo.findTasksInRange(from, to);
     res.json(tasks);
   } catch (err) {
-    res.status(503).json({ error: (err as Error).message });
+    console.error(err);
+    res.status(503).json({ error: 'Service unavailable' });
   }
 });
 
 router.post('/', async (req: Request, res: Response): Promise<void> => {
-  if (!isDbConfigured()) {
-    res.status(503).json({ error: 'Database not configured' });
-    return;
-  }
   const { title, date } = req.body ?? {};
   if (typeof title !== 'string' || !title.trim()) {
     res.status(400).json({ error: '"title" must be a non-empty string' });
@@ -64,16 +71,13 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
     const task = await taskRepo.createTask(title.trim(), dateStr);
     res.status(201).json(task);
   } catch (err) {
-    res.status(503).json({ error: (err as Error).message });
+    console.error(err);
+    res.status(503).json({ error: 'Service unavailable' });
   }
 });
 
 router.patch('/:id', async (req: Request, res: Response): Promise<void> => {
-  if (!isDbConfigured()) {
-    res.status(503).json({ error: 'Database not configured' });
-    return;
-  }
-  const id = parseId(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id);
+  const id = parseId(req.params.id);
   if (id === null) {
     res.status(400).json({ error: 'Invalid task id' });
     return;
@@ -110,16 +114,13 @@ router.patch('/:id', async (req: Request, res: Response): Promise<void> => {
     }
     res.json(task);
   } catch (err) {
-    res.status(503).json({ error: (err as Error).message });
+    console.error(err);
+    res.status(503).json({ error: 'Service unavailable' });
   }
 });
 
 router.delete('/:id', async (req: Request, res: Response): Promise<void> => {
-  if (!isDbConfigured()) {
-    res.status(503).json({ error: 'Database not configured' });
-    return;
-  }
-  const id = parseId(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id);
+  const id = parseId(req.params.id);
   if (id === null) {
     res.status(400).json({ error: 'Invalid task id' });
     return;
@@ -132,7 +133,8 @@ router.delete('/:id', async (req: Request, res: Response): Promise<void> => {
     }
     res.status(204).send();
   } catch (err) {
-    res.status(503).json({ error: (err as Error).message });
+    console.error(err);
+    res.status(503).json({ error: 'Service unavailable' });
   }
 });
 
